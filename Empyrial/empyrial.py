@@ -95,7 +95,7 @@ class Engine:
         }
         if self.optimizer is None and self.weights is None:
             self.weights = [1.0 / len(self.portfolio)] * len(self.portfolio)
-        elif self.optimizer in optimizers.keys():
+        elif self.optimizer in optimizers:
             if self.optimizer == "MEANVAR":
                 self.weights = optimizers.get(self.optimizer)(self, vol_max=max_vol, perf=False)
             else:
@@ -121,26 +121,22 @@ def get_returns(stocks, wts, start_date, end_date=TODAY):
         assets = yf.download(stocks, start=start_date, end=end_date, progress=False)["Adj Close"]
         assets = assets.filter(stocks)
         ret_data = assets.pct_change()[1:]
-        returns = (ret_data * wts).sum(axis=1)
-        return returns
+        return (ret_data * wts).sum(axis=1)
     else:
         df = yf.download(stocks, start=start_date, end=end_date, progress=False)["Adj Close"]
         df = pd.DataFrame(df)
-        returns = df.pct_change()
-        return returns
+        return df.pct_change()
 
 
 def get_returns_from_data(data, wts):
     ret_data = data.pct_change()[1:]
-    returns = (ret_data * wts).sum(axis=1)
-    return returns
+    return (ret_data * wts).sum(axis=1)
 
 
 def calculate_information_ratio(returns, benchmark_returns, days=252) -> float:
     return_difference = returns - benchmark_returns
     volatility = return_difference.std() * np.sqrt(days)
-    information_ratio_result = return_difference.mean() / volatility
-    return information_ratio_result
+    return return_difference.mean() / volatility
 
 
 def graph_allocation(my_portfolio):
@@ -163,7 +159,7 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
 
         columns = []
         for date in rebalance_schedule.columns:
-            date = date[0:10]
+            date = date[:10]
             columns.append(date)
         rebalance_schedule.columns = columns
 
@@ -171,11 +167,11 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
         dates = [my_portfolio.start_date]
 
         # then our rebalancing dates into that list
-        dates = dates + rebalance_schedule.columns.to_list()
+        dates += rebalance_schedule.columns.to_list()
 
         datess = []
         for date in dates:
-            date = date[0:10]
+            date = date[:10]
             datess.append(date)
         dates = datess
         # this will hold returns
@@ -187,7 +183,7 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
             weights = rebalance_schedule[str(dates[i + 1])]
 
             # then we want to get the returns
-            
+
             add_returns = get_returns(
                 my_portfolio.portfolio,
                 weights,
@@ -219,13 +215,10 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
             for r in creturns:
                 if r <= 1 + my_portfolio.risk_manager["Stop Loss"]:
                     values.append(r)
-                else:
-                    pass
-
             try:
                 date = creturns[creturns == values[0]].index[0]
                 date = str(date.to_pydatetime())
-                my_portfolio.end_date = date[0:10]
+                my_portfolio.end_date = date[:10]
                 returns = returns[: my_portfolio.end_date]
 
             except Exception as e:
@@ -237,13 +230,10 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
             for r in creturns:
                 if r >= 1 + my_portfolio.risk_manager["Take Profit"]:
                     values.append(r)
-                else:
-                    pass
-
             try:
                 date = creturns[creturns == values[0]].index[0]
                 date = str(date.to_pydatetime())
-                my_portfolio.end_date = date[0:10]
+                my_portfolio.end_date = date[:10]
                 returns = returns[: my_portfolio.end_date]
 
             except Exception as e:
@@ -257,13 +247,10 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
             for r in drawdown:
                 if r <= my_portfolio.risk_manager["Max Drawdown"]:
                     values.append(r)
-                else:
-                    pass
-
             try:
                 date = drawdown[drawdown == values[0]].index[0]
                 date = str(date.to_pydatetime())
-                my_portfolio.end_date = date[0:10]
+                my_portfolio.end_date = date[:10]
                 returns = returns[: my_portfolio.end_date]
 
             except Exception as e:
@@ -272,8 +259,8 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
     except Exception as e:
         pass
 
-    print("Start date: " + str(my_portfolio.start_date))
-    print("End date: " + str(my_portfolio.end_date))
+    print(f"Start date: {str(my_portfolio.start_date)}")
+    print(f"End date: {str(my_portfolio.end_date)}")
 
     benchmark = get_returns(
         my_portfolio.benchmark,
@@ -282,20 +269,20 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
         end_date=my_portfolio.end_date,
     )
     benchmark = benchmark.dropna()
-    
+
     CAGR = cagr(returns, period='daily', annualization=None)
     # CAGR = round(CAGR, 2)
     # CAGR = CAGR.tolist()
-    CAGR = str(round(CAGR * 100, 2)) + "%"
+    CAGR = f"{str(round(CAGR * 100, 2))}%"
 
     CUM = cum_returns(returns, starting_value=0, out=None) * 100
     CUM = CUM.iloc[-1]
     CUM = CUM.tolist()
-    CUM = str(round(CUM, 2)) + "%"
+    CUM = f"{str(round(CUM, 2))}%"
 
     VOL = qs.stats.volatility(returns, annualize=True)
     VOL = VOL.tolist()
-    VOL = str(round(VOL * 100, 2)) + " %"
+    VOL = f"{str(round(VOL * 100, 2))} %"
 
     SR = qs.stats.sharpe(returns, rf=rf)
     SR = np.round(SR, decimals=2)
@@ -314,7 +301,7 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
     STABILITY = str(STABILITY)
 
     MD = max_drawdown(returns, out=None)
-    MD = str(round(MD * 100, 2)) + " %"
+    MD = f"{str(round(MD * 100, 2))} %"
 
     """OR = omega_ratio(returns, risk_free=0.0, required_return=0.0)
     OR = round(OR,2)
@@ -348,7 +335,7 @@ def empyrial(my_portfolio, rf=0.0, sigma_value=1, confidence_value=0.95):
         returns, sigma=sigma_value, confidence=confidence_value
     )
     VAR = np.round(VAR, decimals=2)
-    VAR = str(VAR * 100) + " %"
+    VAR = f"{str(VAR * 100)} %"
 
     alpha, beta = alpha_beta(returns, benchmark, risk_free=rf)
     AL = round(alpha, 2)
@@ -685,8 +672,8 @@ def optimize_portfolio(my_portfolio, vol_max=25, pie_size=5, font_size=14):
         "HRP": hrp,
         "MINVAR": min_var,
     }
-    
-    if my_portfolio.optimizer in optimizers.keys():
+
+    if my_portfolio.optimizer in optimizers:
         if my_portfolio.optimizer == "MEANVAR":
             wts = optimizers.get(my_portfolio.optimizer)(my_portfolio, my_portfolio.max_vol)
         else:
@@ -730,10 +717,7 @@ def optimize_portfolio(my_portfolio, vol_max=25, pie_size=5, font_size=14):
 
 
 def check_schedule(rebalance) -> bool:
-    valid_schedule = False
-    if rebalance.lower() in rebalance_periods.keys():
-        valid_schedule = True
-    return valid_schedule
+    return rebalance.lower() in rebalance_periods.keys()
 
 
 def valid_range(start_date, end_date, rebalance) -> tuple:
@@ -761,7 +745,7 @@ def get_date_range(start_date, end_date, rebalance) -> list:
 
     if rebalance in rebalance_periods.keys():
         # run for an arbitrarily large number we'll resolve this by breaking when we break the equality
-        for i in range(1000):
+        for _ in range(1000):
             # increment the date based on the selected period
             input_date = input_date + dt.timedelta(days=rebalance_periods.get(rebalance))
             if input_date <= end_date:
@@ -819,7 +803,7 @@ def make_rebalance(
                 end_date=dates[i + 1],
                 portfolio=portfolio_input,
                 weights=allocation,
-                optimizer="{}".format(optimize),
+                optimizer=f"{optimize}",
                 max_vol=vol_max,
                 diversification=div,
                 min_weights=min,
@@ -839,7 +823,7 @@ def make_rebalance(
                 max_weights=max,
             )
 
-        output_df["{}".format(dates[i + 1])] = portfolio.weights
+        output_df[f"{dates[i + 1]}"] = portfolio.weights
 
     # we have to run it one more time to get what the optimization is for up to today's date
     try:
@@ -847,7 +831,7 @@ def make_rebalance(
             start_date=dates[0],
             portfolio=portfolio_input,
             weights=allocation,
-            optimizer="{}".format(optimize),
+            optimizer=f"{optimize}",
             max_vol=vol_max,
             diversification=div,
             min_weights=min,
@@ -866,7 +850,7 @@ def make_rebalance(
             max_weights=max,
         )
 
-    output_df["{}".format(TODAY)] = portfolio.weights
+    output_df[f"{TODAY}"] = portfolio.weights
 
     make_rebalance.output = output_df
     return output_df
